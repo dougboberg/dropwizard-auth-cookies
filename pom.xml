@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>Authorization Cookies for Dropwizard 4 and Java 17</name>
+  <description>Cookies for Dropwizard session management using standard Java Principal and JSON Web Tokens</description>
+  <url>https://github.com/dougboberg/dropwizard-auth-cookies</url>
+  <groupId>com.ikonetics</groupId>
+  <artifactId>dropwizard-auth-cookies</artifactId>
+  <version>0.8</version>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+
+    <!-- 
+      Dropwizard 4 is Java 11 and the jakarta namespace.
+      Dropwizard 3 is Java 11 with older javax namespace. 
+      Dropwizard 2 is nearing end of life.
+      https://github.com/dropwizard/dropwizard/discussions/4720#discussioncomment-2496043
+    -->
+    <dropwizard.version>4.0.0-beta.1</dropwizard.version>
+
+    <!-- 
+      Fusionauth JWT is small and should only be dependent on Jackson, which Dropwizard already uses.
+      https://github.com/FusionAuth/fusionauth-jwt 
+    -->
+    <fusionauth.version>5.2.0</fusionauth.version>
+  </properties>
+
+  <dependencies>
+
+    <dependency>
+      <groupId>io.dropwizard</groupId>
+      <artifactId>dropwizard-core</artifactId>
+      <version>${dropwizard.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.dropwizard</groupId>
+      <artifactId>dropwizard-auth</artifactId>
+      <version>${dropwizard.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.fusionauth</groupId>
+      <artifactId>fusionauth-jwt</artifactId>
+      <version>${fusionauth.version}</version>
+    </dependency>
+
+  </dependencies>
+
+  <distributionManagement>
+    <!-- https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry -->
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/dougboberg/dropwizard-auth-cookies</url>
+    </repository>
+  </distributionManagement>
+
+  <developers>
+    <developer>
+      <name>Douglas Boberg</name>
+      <organization>Ikonetics</organization>
+      <organizationUrl>https://www.ikonetics.com/</organizationUrl>
+    </developer>
+  </developers>
+
+  <licenses>
+    <license>
+      <name>MIT</name>
+      <url>https://spdx.org/licenses/MIT.html</url>
+    </license>
+  </licenses>
+</project>
