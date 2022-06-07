@@ -5,7 +5,7 @@ Obviously heavily inspired by @dhatim and https://github.com/dhatim/dropwizard-j
 * Dropwizard 4 targets Java 11+ and the jakarta namespace.
 * This library targets Java 17.
 
-## Detailed Description
+### Detailed Description
 This library creates a standard HTTP cookie whose value is a JSON Web Token (JWT https://jwt.io) object. 
 The JWT may contain standard Java Principal Roles and additional custom key-value "claims". 
 The cookie is stored on the remote client (web browser) and the Prinicpal is used in Java on the Dropwizard server. 
@@ -40,7 +40,7 @@ After GitHub Packages settings are configured, add the following to your project
 <dependency>
     <groupId>com.ikonetics</groupId>
     <artifactId>dropwizard-auth-cookies</artifactId>
-    <version>0.8</version>
+    <version>0.9</version>
 </dependency>
 ```
 
@@ -53,11 +53,11 @@ import com.ikonetics.dropwizard.authcookie.*;
 
 @Override
 public void initialize(Bootstrap<Configuration> bootstrap) {
+
     Builder<Configuration, CookiePrincipal> builder = new AuthCookieBundle.Builder<>(CookiePrincipal.class);
-    // TODO: maybe add optional builder configurations here
+
     bootstrap.addBundle(builder.build());
 
-    // ... my other bundles and dropwizard configs...
 }
 ```
 
@@ -92,9 +92,9 @@ Use the `@Auth` annotation to retrieve the Principal on resources that require a
 If the client has a good and valid JWT cookie the library deserializes the JWT into the Principal object and passes it through the `@Auth` annotation.
 ```java
 @GET
-@Path("/whoami")
-public String whoami(@Auth CookiePrincipal principal) {
-    // the @Auth annotation ensures the 'principal' must exist
+@Path("/private-page")
+public String getPrivatePage(@Auth CookiePrincipal principal) {
+    // the @Auth annotation ensures the 'principal' must exist, or an unauthorized error is thrown (see Dropwizard docs)
     return "Who Am I? " + principal.toString();
 }
 ```
@@ -119,7 +119,7 @@ The claims are part of the cookie value and are sent to the calling client.
 **You should not put secret information into a claim**
 JWT information, including all claims, are only *encoded* and are absolutely not *encrypted*.
 
-The `CookiePrincipal` has helper methods to set all claims at once, get all claims, and remove a claim.
+The `AuthCookiePrincipal` super class has helper methods to set all claims at once, get all claims, and remove a claim.
 * `setClaims(HashMap<String, Object>)`
 * `getClaims()`
 * `addClaim(String, Object)`
@@ -166,7 +166,7 @@ public String acctAdminArea(@Auth CookiePrincipal principal) {
 }
 ```
 
-The `CookiePrincipal` has helper methods to set all roles, get all roles, add a role, or remove a role.
+The `AuthCookiePrincipal` super class has helper methods to set all roles, get all roles, add a role, or remove a role.
 * `setRoles(Set<String>)`
 * `getRoles()`
 * `addRole(String)`
@@ -230,25 +230,23 @@ Pass `false` to disable the cookie HttpOnly option.
 Most scenarios won't need to use these advanced optional configurations.
 
 ### `new Builder(Class<P>)`
-* a `CookiePrincipal` class is **always** required when instantiating a new Builder
+* the class must extend the abstract class `com.ikonetics.dropwizard.authcookie.AuthCookiePrincipal` 
 
-Provide your own custom Principal class that extends `com.ikonetics.dropwizard.authcookie.CookiePrincipal`.
+For most cases you can simply use the provided `CookiePrincipal` class, which already extends `AuthCookiePrincipal`. 
+If you need something more complex, create your own custom `AuthCookiePrincipal` extension and pass it to the `Builder()`.
 
-The custom Principal class must implement its own 3-argument constructor `(String, Set<String>, Map)` for Name, Roles, and Claims.
-The constructor must call to `super(n, r, c)` and can otherwise be empty:
+A custom Principal class must implement its own 1-argument constructor `(String)` for the Java Principal Name.
+The constructor must call to `super(name)` and can otherwise be empty:
 ```java
-public class MyCustomPrincipal extends CookiePrincipal {
-    public MyCustomPrincipal(String name, Set<String> roles, Map<String, Object> claims) {
-        // pass arguments to super CookiePrincipal
-        super(name, roles, claims);
+public class MyCustomPrincipal extends AuthCookiePrincipal {
+    public MyCustomPrincipal(String name) {
+        super(name);
     }
 }
 ```
 
-
 ### `withDomain(String)`
-* ignored by default
-* ignored when set to `null` or a blank string.
+* ignored by default and when set to `null` or a blank string.
 
 The host domain for which the cookie is valid. 
 Multiple host/domain values are not allowed, but if a domain is specified, then subdomains are always included.
@@ -268,18 +266,9 @@ The forward slash (`/`) character is interpreted as a directory separator, and s
 
 ### `withCookieName(String)`
 * the default cookie is named '`_authcookie`' 
-* names can be `1` to `64` characters in length
+* names can be `4` to `64` characters in length
 
 Pass in a simple string of ASCII alphanumerics, dashes, and underscores to change the cookie name.
-
-
-### `withRolesKey(String)`
-* the default internal key is '`_principal_roles_claim`' 
-* key can be `1` to `64` characters in length
-
-You probably should not change this default value. 
-
-The library uses this key to inject the Principal Roles into a custom JWT claim. If you override the default, your key must be a simple string and cannot conflict with any standard JWT key names and cannot have quotes, slashes, or control characters.
 
 
 ### `withIssuer(String)`
@@ -304,7 +293,6 @@ A new secret string is created at each Dropwizard Application reboot (during `in
 
 Theoretically you could use this configuration to share the same secret across multiple instances of your Dropwizard Application.
 The resulting cookie JWT values will be valid on any instance using the same shared secret that needs to verify the JWT.
-
 
 
 ### `withSystemLogging(boolean)`

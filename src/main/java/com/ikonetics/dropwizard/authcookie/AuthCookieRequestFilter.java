@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
@@ -26,7 +27,7 @@ import jakarta.ws.rs.core.Cookie;
 
 
 @Priority(Priorities.AUTHENTICATION)
-public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilter<Cookie, P> {
+public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends AuthFilter<Cookie, P> {
 
     // General config
     final Class<P> principalClass; // class to build and return
@@ -38,16 +39,18 @@ public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilt
     // JWT setup
     final Verifier jwtVerifier;
     final String jwtIssuer;
-    final String jwtRolesKey;
 
-    public AuthCookieRequestFilter(Class<P> principalClass, boolean systemLogging, String cookieName, Verifier jwtVerifier, String jwtIssuer,
-            String jwtRolesKey) {
+    // private internals; not configurable.
+    final String roleKey;
+
+    public AuthCookieRequestFilter(Class<P> principalClass, boolean systemLogging, String cookieName, Verifier jwtVerifier, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
         this.cookieName = cookieName;
         this.jwtVerifier = jwtVerifier;
         this.jwtIssuer = jwtIssuer;
-        this.jwtRolesKey = jwtRolesKey;
         this.systemLogging = systemLogging;
+
+        this.roleKey = roleKey;
 
         // tne authorizer utility checks for access to specific role
         this.authorizer = (Authorizer<P>) (principal, role, requestContext) -> principal.isInRole(role);
@@ -81,7 +84,7 @@ public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilt
 
             try {
                 // if bundle configuration values are configured / not blank, check the token against them
-                if (StringUtils.isNotBlank(jwtIssuer) && !jwtIssuer.equalsIgnoreCase(jwt.issuer)) {
+                if (StringUtils.isNotBlank(jwtIssuer) && !Objects.equals(jwtIssuer, jwt.issuer)) {
                     if (this.systemLogging) {
                         System.out.println(this + " Unrecognized issuer " + String.valueOf(jwt.issuer));
                     }
@@ -93,7 +96,7 @@ public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilt
 
                 // convert JWT list to Principal roles Set. Avoid passing null Roles in the constructor below.
                 Set<String> roles = new HashSet<>();
-                List<Object> list = jwt.getList(this.jwtRolesKey);
+                List<Object> list = jwt.getList(roleKey);
                 if (list != null) {
                     for (Object obj : list) {
                         roles.add(String.valueOf(obj));
@@ -104,13 +107,22 @@ public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilt
                 Map<String, Object> claims = Optional.ofNullable(jwt.getOtherClaims()).orElse(new HashMap<>());
 
                 // cleanup by removing the Roles from the Claims. We injected them during Response and already read them back out above.
-                claims.remove(this.jwtRolesKey);
+                claims.remove(roleKey);
 
-                // the returned Principal must have its own 3-argument constructor for String, Set, and Map. (the Bundle verified this at setup)
-                Constructor<P> principalConstructor = principalClass.getConstructor(String.class, Set.class, Map.class);
+                // the returned Principal must have its own 1-argument constructor (the Bundle verified this at setup)
+                Constructor<P> principalConstructor = principalClass.getConstructor(String.class);
 
-                // create and return the Principal by passing the Name, Roles, and CLaims to the constructor.
-                return Optional.of(principalConstructor.newInstance(name, roles, claims));
+                // create and return the Principal by passing the Name to the constructor
+                P principal = principalConstructor.newInstance(name);
+
+                // set the Roles and Claims
+                principal.setRoles(roles);
+                principal.setClaims(claims);
+
+                // set internal JWT values. they might be useful to read
+                principal.storeJwtInternals(buildInternalsMap(jwt));
+
+                return Optional.of(principal);
 
             } catch (Exception ex) {
                 // an actual error we care about
@@ -138,7 +150,41 @@ public class AuthCookieRequestFilter<P extends CookiePrincipal> extends AuthFilt
             throw new InternalServerErrorException(ex);
         }
 
+        // did not return as authenticated above
+        if (this.systemLogging) {
+            System.out.println(this + " Passing auth filter failure to super.unauthorizedHandler");
+        }
+
         throw new WebApplicationException(unauthorizedHandler.buildResponse(prefix, realm));
     }
 
+
+    Map<String, String> buildInternalsMap(JWT jwt) {
+        Map<String, String> map = new HashMap<>();
+        // the library stores these as dates, we want seconds as Strings
+        if (jwt.expiration != null) {
+            map.put("exp", String.valueOf(jwt.expiration.toEpochSecond()));
+        }
+        if (jwt.issuedAt != null) {
+            map.put("iat", String.valueOf(jwt.issuedAt.toEpochSecond()));
+        }
+        if (jwt.notBefore != null) {
+            map.put("nbf", String.valueOf(jwt.notBefore.toEpochSecond()));
+        }
+
+        // these objects we stringify (they're probably strings anyway)
+        if (jwt.audience != null) {
+            map.put("aud", String.valueOf(jwt.audience));
+        }
+        if (jwt.issuer != null) {
+            map.put("iss", String.valueOf(jwt.issuer));
+        }
+        if (jwt.subject != null) {
+            map.put("sub", String.valueOf(jwt.subject));
+        }
+        if (jwt.uniqueId != null) {
+            map.put("jti", String.valueOf(jwt.uniqueId));
+        }
+        return map;
+    }
 }

@@ -6,10 +6,10 @@ import jakarta.ws.rs.core.SecurityContext;
 
 
 public class AuthCookieSecurityContext implements SecurityContext {
-    private final CookiePrincipal principal;
+    private final AuthCookiePrincipal principal;
     private final boolean secure;
 
-    public AuthCookieSecurityContext(CookiePrincipal principal, boolean secure) {
+    public AuthCookieSecurityContext(AuthCookiePrincipal principal, boolean secure) {
         this.principal = principal;
         this.secure = secure;
     }

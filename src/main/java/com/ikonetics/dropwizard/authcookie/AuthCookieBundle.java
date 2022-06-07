@@ -2,8 +2,6 @@ package com.ikonetics.dropwizard.authcookie;
 
 import java.nio.ByteBuffer;
 import java.util.Base64;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
 import io.dropwizard.auth.AuthDynamicFeature;
@@ -18,7 +16,7 @@ import io.fusionauth.jwt.hmac.HMACSigner;
 import io.fusionauth.jwt.hmac.HMACVerifier;
 
 
-public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal> implements ConfiguredBundle<C> {
+public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrincipal> implements ConfiguredBundle<C> {
 
     // General config
     final Class<P> principalClass; // class to build and return
@@ -36,7 +34,6 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
     final Signer jwtSigner;
     final Verifier jwtVerifier;
     final String jwtIssuer;
-    final String jwtRolesKey;
 
     // Use the Builder to create the Bundle. Configuration validation is done in the Builder.build(). Most things you should leave as default.
     //
@@ -51,7 +48,6 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
         this.jwtSigner = builder.jwtSigner;
         this.jwtVerifier = builder.jwtVerifier;
         this.jwtIssuer = builder.jwtIssuer;
-        this.jwtRolesKey = builder.jwtRolesKey;
         this.systemLogging = builder.systemLogging;
     }
 
@@ -59,10 +55,12 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
     // Dropwizard bundle setup
     @Override
     public void run(C configuration, Environment env) throws Exception {
-        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, systemLogging, cookieName, jwtVerifier, jwtIssuer,
-                jwtRolesKey);
+        // shared key created at runtime and used by both Request & Response. internal and not configurable.
+        String roleKey = "_internal_role_key_" + UUID.randomUUID().toString();
+
+        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, systemLogging, cookieName, jwtVerifier, jwtIssuer, roleKey);
         AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, sessionMinutes, systemLogging, cookieName, cookieDomain,
-                cookiePath, cookieSecure, cookieHttpOnly, jwtSigner, jwtIssuer, jwtRolesKey);
+                cookiePath, cookieSecure, cookieHttpOnly, jwtSigner, jwtIssuer, roleKey);
 
         JerseyEnvironment jersey = env.jersey();
         jersey.register(new AuthDynamicFeature(requestFilter));
@@ -78,8 +76,8 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
 
     // Public Builder for the bundle
     //
-    public static class Builder<C extends Configuration, P extends CookiePrincipal> {
-        final Class<P> principalClass; // required you provide a class that extends CookiePrincipal
+    public static class Builder<C extends Configuration, P extends AuthCookiePrincipal> {
+        final Class<P> principalClass; // required you provide a class that extends AuthCookiePrincipal
         long sessionMinutes = 10; // non-zero positive count of minutes. defaults to 10 if zero
         boolean systemLogging; // some basic debugging, boolean primitive defaults to false
         String cookieName; // empty value defaults to '_authcookie'
@@ -91,7 +89,6 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
         Signer jwtSigner;
         Verifier jwtVerifier;
         String jwtIssuer; // can be null
-        String jwtRolesKey; // empty value defaults to '_principal_roles_claim'
 
         // minimum setup just needs the name of your CookiePrincipal subclass
         public Builder(Class<P> principalClass) {
@@ -148,12 +145,6 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
         }
 
 
-        public Builder<C, P> withRolesKey(String jwtRolesKey) {
-            this.jwtRolesKey = jwtRolesKey;
-            return this;
-        }
-
-
         public Builder<C, P> withSystemLogging(boolean systemLogging) {
             this.systemLogging = systemLogging;
             return this;
@@ -163,7 +154,7 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
         // builder checks that we have enough valid info to create the Bundle
         public AuthCookieBundle<C, P> build() {
 
-            // must have a Class that extends CookiePrincipal
+            // must have a Class that extends AuthCookiePrincipal
             if (principalClass == null) {
                 throw new IllegalArgumentException(
                         "AuthCookieBundle.Builder: Principal class must not be null. Provide your own or use the default CookiePrincipal in this package.");
@@ -171,11 +162,9 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
 
             // verify the passed in Principal class has its own 3-argument constructor for Name, Roles, and Claims
             try {
-                principalClass.getConstructor(String.class, Set.class, Map.class);
+                principalClass.getConstructor(String.class);
             } catch (Exception ex) {
-                throw new IllegalArgumentException(
-                        "AuthCookieBundle.Builder: Principal class must implement its own 3-argument constructor (String, Set, Map) for Name, Roles, and Claims",
-                        ex);
+                throw new IllegalArgumentException("AuthCookieBundle.Builder: Principal class must implement its own 1-argument constructor", ex);
             }
 
             // cap session duration between 1 minute - 16819200 minutes (32 years)
@@ -185,12 +174,10 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
             systemLogging = Boolean.valueOf(systemLogging).booleanValue();
 
             // name of the cookie in the browser can only have ASCII alphanumerics, dashes, and underscores.
-            if (cookieName != null) {
-                cookieName = cookieName.trim();
-            }
             if (cookieName == null || cookieName.isBlank()) {
                 cookieName = "_authcookie";
             }
+            cookieName = cookieName.trim();
             if (cookieName.matches(".*[^\\p{ASCII}].*")) {
                 throw new IllegalArgumentException("AuthCookieBundle.Builder: Cookie name is invalid because it contains non-ASCII characters.");
             }
@@ -200,8 +187,8 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
             if (cookieName.matches(".*[\\(\\)\\<\\>\\@\\,\\;\\:\\\"\\[\\]\\?\\=\\{\\}\\/\\\\].*")) {
                 throw new IllegalArgumentException("AuthCookieBundle.Builder: Cookie name is invalid because it contains restricted puncutation.");
             }
-            if (cookieName.length() > 64) {
-                throw new IllegalArgumentException("AuthCookieBundle.Builder: Cookie name is invalid because it is longer than 64 characters.");
+            if (cookieName.length() < 4 || cookieName.length() > 64) {
+                throw new IllegalArgumentException("AuthCookieBundle.Builder: Cookie name length must be between 4 and 64 characters.");
             }
 
             // domain should be null if it is blank
@@ -252,25 +239,6 @@ public class AuthCookieBundle<C extends Configuration, P extends CookiePrincipal
                 if (jwtIssuer.isBlank()) {
                     jwtIssuer = null;
                 }
-            }
-
-            // name of the claims key that holds the Principal Roles. Must not conflict with standard JWT keys, have quotes, or slashes
-            if (jwtRolesKey != null) {
-                jwtRolesKey = jwtRolesKey.trim();
-            }
-            if (jwtRolesKey == null || jwtRolesKey.isBlank()) {
-                jwtRolesKey = "_principal_roles_claim";
-            }
-            if (jwtRolesKey.length() == 3 && "aud,exp,iat,iss,jti,nbf,sub".contains(jwtRolesKey.toLowerCase())) {
-                throw new IllegalArgumentException(
-                        "AuthCookieBundle.Builder: JWT Roles Key is invalid because it conflicts with a Registered Claim name defined in RFC 7519");
-            }
-            if (jwtRolesKey.matches(".*[\\p{Cntrl}\\\"'\\/\\\\].*")) {
-                throw new IllegalArgumentException(
-                        "AuthCookieBundle.Builder: JWT Roles Key is invalid because it contains control characters or restricted puncutation.");
-            }
-            if (jwtRolesKey.length() > 64) {
-                throw new IllegalArgumentException("AuthCookieBundle.Builder: JWT Roles Key is invalid because it is longer than 64 characters.");
             }
 
             return new AuthCookieBundle<>(this);

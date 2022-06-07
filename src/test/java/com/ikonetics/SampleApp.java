@@ -52,8 +52,12 @@ public class SampleApp extends Application<Configuration> {
     @Path("/")
     @Produces(MediaType.TEXT_HTML)
     public class SampleResource {
-        String links = "\n\n\n<a href='/'>/ public root</a> \n<a href='/whoami'>/whoami</a> \n<a href='/login'>/login</a>"
-                + "\n<a href='/loginasadmin'>/loginAsAdmin</a> \n<a href='/admin'>/admin only area</a> \n<a href='/logout'>/logout</a>";
+        String links = "\n\n\n\n<a href='/'>root: / </a> - public page. no login needed                                    "
+                + "\n<a href='/login'>/login</a> - authenticates and gives you a new Principal session                     "
+                + "\n<a href='/behindLogin'>/behindLogin</a> - a private page for any authenticated user, only viewable after you've logged in "
+                + "\n<a href='/loginasadmin'>/loginAsAdmin</a> - authenticates and gives you a custom 'admin' role        "
+                + "\n<a href='/behindAdmin'>/admin only area</a> - a private page for users in a custom admin role           "
+                + "\n<a href='/logout'>/logout</a> - removes your authenticated user. good bye.";
 
         public SampleResource() {
             super();
@@ -62,51 +66,58 @@ public class SampleApp extends Application<Configuration> {
 
         @GET
         public String getRoot(@Context ContainerRequestContext context) {
-            return "<pre> Public root home: " + Instant.now().getEpochSecond() + "\n user: " + context.getSecurityContext().getUserPrincipal() + links
-                    + "</pre>";
+            Long now = Instant.now().getEpochSecond();
+            return "<pre>Public home page  [now " + now + "] \n\n   my user: " + context.getSecurityContext().getUserPrincipal() + links + "</pre>";
         }
 
 
         @GET
         @Path("login")
         public String login(@Context ContainerRequestContext context) {
-            CookiePrincipal principal = new CookiePrincipal("My User Name", Set.of("Some_User"));
+            Long now = Instant.now().getEpochSecond();
+            CookiePrincipal principal = new CookiePrincipal("My User Name");
+            principal.setRoles(Set.of("General_User_Role"));
             principal.addClaim("loginsecond", "" + Instant.now().getEpochSecond());
             principal.addInContext(context);
-            return "<pre> Login: " + Instant.now().getEpochSecond() + "\n user:" + principal + links + "</pre>";
+            return "<pre>Login   [now " + now + ") \n\n   my user: " + principal + links + "</pre>";
         }
 
 
         @GET
-        @Path("whoami")
-        public String whoami(@Auth CookiePrincipal principal) {
-            return "<pre> WhoAmI: " + Instant.now().getEpochSecond() + "\n user:" + principal.toString() + links + "</pre>";
+        @Path("behindLogin")
+        public String behindLogin(@Auth CookiePrincipal principal) {
+            Long now = Instant.now().getEpochSecond();
+            return "<pre>Behind Login  [now " + now + "] \n\n   my user: " + principal.toString() + links + "</pre>";
         }
 
 
         @GET
         @Path("loginasadmin")
         public String loginAsAdmin(@Context ContainerRequestContext context) {
-            CookiePrincipal principal = new CookiePrincipal("My Admin Name", Set.of("I_AM_ADMIN"));
+            Long now = Instant.now().getEpochSecond();
+            CookiePrincipal principal = new CookiePrincipal("My Admin Name");
+            principal.setRoles(Set.of("I_AM_ADMIN"));
             principal.addClaim("loginsecond", "" + Instant.now().getEpochSecond());
             principal.addInContext(context);
-            return "<pre> Admin Login: " + Instant.now().getEpochSecond() + "\n user:" + principal + links + "</pre>";
+            return "<pre>Admin Login  [now " + now + "] \n\n   my user: " + principal + links + "</pre>";
         }
 
 
         @GET
-        @Path("admin")
+        @Path("behindAdmin")
         @RolesAllowed("I_AM_ADMIN")
-        public String getAdminResource(@Auth CookiePrincipal principal) {
-            return "<pre> Admin Check:" + Instant.now().getEpochSecond() + "\n user:" + principal + links + "</pre>";
+        public String behindAdmin(@Auth CookiePrincipal principal) {
+            Long now = Instant.now().getEpochSecond();
+            return "<pre>Admin Only Area  [now " + now + "] \n\n   my user: " + principal + links + "</pre>";
         }
 
 
         @GET
         @Path("logout")
         public String logout(@Context ContainerRequestContext context) {
+            Long now = Instant.now().getEpochSecond();
             CookiePrincipal.removeFromContext(context);
-            return "<pre> Log Out: " + Instant.now().getEpochSecond() + "\n user:" + context.getSecurityContext().getUserPrincipal() + links + "</pre>";
+            return "<pre> Log Out  [now " + now + "] \n\n   my user: " + context.getSecurityContext().getUserPrincipal() + links + "</pre>";
         }
 
     }

@@ -18,7 +18,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.NewCookie;
 
 
-public class AuthCookieResponseFilter<P extends CookiePrincipal> implements ContainerResponseFilter {
+public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements ContainerResponseFilter {
 
     // General config
     final Class<P> principalClass; // class to build and return
@@ -35,10 +35,12 @@ public class AuthCookieResponseFilter<P extends CookiePrincipal> implements Cont
     // JWT setup
     final Signer jwtSigner;
     final String jwtIssuer;
-    final String jwtRolesKey;
+
+    // private internals; not configurable.
+    final String roleKey;
 
     public AuthCookieResponseFilter(Class<P> principalClass, long sessionMinutes, boolean systemLogging, String cookieName, String cookieDomain,
-            String cookiePath, boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String jwtRolesKey) {
+            String cookiePath, boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
         this.cookieName = cookieName;
         this.cookieDomain = cookieDomain;
@@ -47,9 +49,10 @@ public class AuthCookieResponseFilter<P extends CookiePrincipal> implements Cont
         this.cookieHttpOnly = cookieHttpOnly;
         this.jwtSigner = jwtSigner;
         this.jwtIssuer = jwtIssuer;
-        this.jwtRolesKey = jwtRolesKey;
         this.sessionMinutes = sessionMinutes;
         this.systemLogging = systemLogging;
+
+        this.roleKey = roleKey;
     }
 
 
@@ -61,7 +64,7 @@ public class AuthCookieResponseFilter<P extends CookiePrincipal> implements Cont
 
         Principal principal = request.getSecurityContext().getUserPrincipal();
         if (principalClass.isInstance(principal)) {
-            CookiePrincipal cookiePrincipal = (CookiePrincipal) principal;
+            AuthCookiePrincipal cookiePrincipal = (AuthCookiePrincipal) principal;
 
             // add Principal name as the JWT subject
             JWT jwt = new JWT();
@@ -69,11 +72,15 @@ public class AuthCookieResponseFilter<P extends CookiePrincipal> implements Cont
 
             // add Principal Roles with a known named key
             Set<String> roles = cookiePrincipal.getRoles();
-            jwt.addClaim(this.jwtRolesKey, roles);
+            if (roles != null) {
+                jwt.addClaim(this.roleKey, roles);
+            }
 
             // put custom claim values into JWT standard Claims payload. There is no setter available so add directly to the jwt 'otherClaims' property.
             Map<String, Object> claims = cookiePrincipal.getClaims();
-            jwt.otherClaims.putAll(claims);
+            if (claims != null) {
+                jwt.otherClaims.putAll(claims);
+            }
 
             // JWT start and expiration constraints
             ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
