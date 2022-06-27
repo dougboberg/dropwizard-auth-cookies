@@ -116,7 +116,7 @@ public abstract class AuthCookiePrincipal implements Principal {
     }
 
 
-    final public Map<String, String> readJwtInternals(String key) {
+    final public Map<String, String> readJwtInternals() {
         return (internals == null) ? null : Collections.unmodifiableMap(internals);
     }
 
