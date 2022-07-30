@@ -20,7 +20,7 @@
       Dropwizard 2 is nearing end of life.
       https://github.com/dropwizard/dropwizard/discussions/4720#discussioncomment-2496043
     -->
-    <dropwizard.version>4.0.0-beta.1</dropwizard.version>
+    <dropwizard.version>4.0.0-beta.2</dropwizard.version>
 
     <!-- 
       Fusionauth JWT is small and should only be dependent on Jackson, which Dropwizard already uses.

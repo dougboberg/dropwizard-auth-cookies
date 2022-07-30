@@ -8,6 +8,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import io.fusionauth.jwt.Signer;
 import io.fusionauth.jwt.domain.JWT;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -20,10 +23,12 @@ import jakarta.ws.rs.core.NewCookie;
 
 public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements ContainerResponseFilter {
 
+    static final Logger LOG = LoggerFactory.getLogger(AuthCookieResponseFilter.class);
+
     // General config
     final Class<P> principalClass; // class to build and return
+    final Level logAtLevel;
     final long sessionMinutes;
-    final boolean systemLogging;
 
     // Cookie setup
     final String cookieName;
@@ -39,9 +44,11 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     // private internals; not configurable.
     final String roleKey;
 
-    public AuthCookieResponseFilter(Class<P> principalClass, long sessionMinutes, boolean systemLogging, String cookieName, String cookieDomain,
-            String cookiePath, boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String roleKey) {
+    public AuthCookieResponseFilter(Class<P> principalClass, Level logAtLevel, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
+            boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
+        this.logAtLevel = logAtLevel;
+        this.sessionMinutes = sessionMinutes;
         this.cookieName = cookieName;
         this.cookieDomain = cookieDomain;
         this.cookiePath = cookiePath;
@@ -49,9 +56,6 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
         this.cookieHttpOnly = cookieHttpOnly;
         this.jwtSigner = jwtSigner;
         this.jwtIssuer = jwtIssuer;
-        this.sessionMinutes = sessionMinutes;
-        this.systemLogging = systemLogging;
-
         this.roleKey = roleKey;
     }
 
@@ -95,20 +99,16 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
             // Sign and encode the JWT to a string representation
             String token = JWT.getEncoder().encode(jwt, jwtSigner);
 
-            if (this.systemLogging) {
-                // if you're here debugging something, you can decode the token at https://jwt.io
-                System.out.println(this + " Add session cookie [" + cookieName + "] with value token: " + token);
-            }
+            // if you're here debugging something, you can decode the token at https://jwt.io
+            LOG.atLevel(logAtLevel).log("Add session cookie [{}] with value token:", String.valueOf(cookieName), String.valueOf(token));
 
             // set the token as the cookie value and -1 maxAge 'session' cookie that expires at browser close; probably irrelevant because of the JWT expiration
             Cookie cookie = new NewCookie(cookieName, token, cookiePath, cookieDomain, NewCookie.DEFAULT_VERSION, null, -1, null, cookieSecure, cookieHttpOnly);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
 
         } else if (request.getCookies().containsKey(cookieName)) {
-            if (this.systemLogging) {
-                System.out.println(this + " Delete dead cookie [" + cookieName + "] using a maxAge of 0 and null value");
-            }
             Cookie cookie = new NewCookie(cookieName, null, cookiePath, cookieDomain, NewCookie.DEFAULT_VERSION, null, 0, null, cookieSecure, cookieHttpOnly);
+            LOG.atLevel(logAtLevel).log("Delete dead cookie [{}] using a maxAge of 0 and null value", String.valueOf(cookieName));
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
         }
 

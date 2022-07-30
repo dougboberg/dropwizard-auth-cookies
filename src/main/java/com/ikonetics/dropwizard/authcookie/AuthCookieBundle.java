@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.UUID;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
+import org.slf4j.event.Level;
 import io.dropwizard.auth.AuthDynamicFeature;
 import io.dropwizard.auth.AuthValueFactoryProvider;
 import io.dropwizard.core.Configuration;
@@ -20,8 +21,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
     // General config
     final Class<P> principalClass; // class to build and return
+    final Level logAtLevel;
     final long sessionMinutes;
-    final boolean systemLogging; // debug helper
 
     // Cookie config
     final String cookieName;
@@ -48,7 +49,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         this.jwtSigner = builder.jwtSigner;
         this.jwtVerifier = builder.jwtVerifier;
         this.jwtIssuer = builder.jwtIssuer;
-        this.systemLogging = builder.systemLogging;
+        this.logAtLevel = builder.logAtLevel;
     }
 
 
@@ -58,8 +59,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         // shared key created at runtime and used by both Request & Response. internal and not configurable.
         String roleKey = "_internal_role_key_" + UUID.randomUUID().toString();
 
-        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, systemLogging, cookieName, jwtVerifier, jwtIssuer, roleKey);
-        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, sessionMinutes, systemLogging, cookieName, cookieDomain,
+        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, logAtLevel, cookieName, jwtVerifier, jwtIssuer, roleKey);
+        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, logAtLevel, sessionMinutes, cookieName, cookieDomain,
                 cookiePath, cookieSecure, cookieHttpOnly, jwtSigner, jwtIssuer, roleKey);
 
         JerseyEnvironment jersey = env.jersey();
@@ -78,8 +79,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     //
     public static class Builder<C extends Configuration, P extends AuthCookiePrincipal> {
         final Class<P> principalClass; // required you provide a class that extends AuthCookiePrincipal
+        Level logAtLevel = Level.DEBUG; // the level that all messages are logged at. defaults to logging everything at "DEBUG" level
         long sessionMinutes = 10; // non-zero positive count of minutes. defaults to 10 if zero
-        boolean systemLogging; // some basic debugging, boolean primitive defaults to false
         String cookieName; // empty value defaults to '_authcookie'
         String cookieDomain; // can be null
         String cookiePath; // empty value defaults to '/'
@@ -145,8 +146,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         }
 
 
-        public Builder<C, P> withSystemLogging(boolean systemLogging) {
-            this.systemLogging = systemLogging;
+        public Builder<C, P> withLogAtLevel(Level logAtLevel) {
+            this.logAtLevel = logAtLevel;
             return this;
         }
 
@@ -169,9 +170,6 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
             // cap session duration between 1 minute - 16819200 minutes (32 years)
             sessionMinutes = Math.min(16819200, Math.max(1, sessionMinutes));
-
-            // debug helper, no checking needed. boolean primitive defaults to false but we reset it explicitly anyway
-            systemLogging = Boolean.valueOf(systemLogging).booleanValue();
 
             // name of the cookie in the browser can only have ASCII alphanumerics, dashes, and underscores.
             if (cookieName == null || cookieName.isBlank()) {

@@ -9,6 +9,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import io.dropwizard.auth.AuthFilter;
 import io.dropwizard.auth.AuthenticationException;
 import io.dropwizard.auth.Authenticator;
@@ -29,9 +32,11 @@ import jakarta.ws.rs.core.Cookie;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends AuthFilter<Cookie, P> {
 
+    static final Logger LOG = LoggerFactory.getLogger(AuthCookieRequestFilter.class);
+
     // General config
     final Class<P> principalClass; // class to build and return
-    final boolean systemLogging;
+    final Level logAtLevel;
 
     // Cookie setup
     final String cookieName;
@@ -43,13 +48,12 @@ public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends Auth
     // private internals; not configurable.
     final String roleKey;
 
-    public AuthCookieRequestFilter(Class<P> principalClass, boolean systemLogging, String cookieName, Verifier jwtVerifier, String jwtIssuer, String roleKey) {
+    public AuthCookieRequestFilter(Class<P> principalClass, Level logAtLevel, String cookieName, Verifier jwtVerifier, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
+        this.logAtLevel = logAtLevel;
         this.cookieName = cookieName;
         this.jwtVerifier = jwtVerifier;
         this.jwtIssuer = jwtIssuer;
-        this.systemLogging = systemLogging;
-
         this.roleKey = roleKey;
 
         // tne authorizer utility checks for access to specific role
@@ -58,9 +62,7 @@ public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends Auth
         // the authenticator utility checks for for general authentication
         this.authenticator = (Authenticator<Cookie, P>) credentials -> {
             if (credentials == null || StringUtils.isBlank(credentials.getValue())) {
-                if (this.systemLogging) {
-                    System.out.println(this + " Invalid cookie credentials " + String.valueOf(credentials));
-                }
+                LOG.atLevel(logAtLevel).log("Invalid cookie credentials: {}", String.valueOf(credentials));
                 return Optional.empty();
             }
 
@@ -68,26 +70,19 @@ public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends Auth
             JWT jwt;
             try {
                 String token = credentials.getValue();
-                if (this.systemLogging) {
-                    System.out.println(this + " Credentials token: " + String.valueOf(token));
-                }
-
+                LOG.atLevel(logAtLevel).log("Credentials token: {}", String.valueOf(token));
                 jwt = JWT.getDecoder().decode(token, jwtVerifier);
 
             } catch (JWTUnavailableForProcessingException | JWTExpiredException | InvalidJWTSignatureException ex) {
                 // library throws errors for notBefore, expired, and if the signing key changes; these are not 'errors' for us.
-                if (this.systemLogging) {
-                    System.out.println(this + " Dead session credentials " + ex.toString());
-                }
+                LOG.atLevel(logAtLevel).log("Dead session credentials: {}", String.valueOf(ex));
                 return Optional.empty();
             }
 
             try {
                 // if bundle configuration values are configured / not blank, check the token against them
                 if (StringUtils.isNotBlank(jwtIssuer) && !Objects.equals(jwtIssuer, jwt.issuer)) {
-                    if (this.systemLogging) {
-                        System.out.println(this + " Unrecognized issuer " + String.valueOf(jwt.issuer));
-                    }
+                    LOG.atLevel(logAtLevel).log("Unrecognized issuer: {}", String.valueOf(jwt.issuer));
                     return Optional.empty();
                 }
 
@@ -126,9 +121,7 @@ public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends Auth
 
             } catch (Exception ex) {
                 // an actual error we care about
-                if (this.systemLogging) {
-                    System.out.println(this + " Rethrowing " + ex.toString());
-                }
+                LOG.atLevel(logAtLevel).log("Rethrowing authenticator exception: {}", String.valueOf(ex));
                 throw new AuthenticationException(ex);
             }
         };
@@ -151,10 +144,7 @@ public class AuthCookieRequestFilter<P extends AuthCookiePrincipal> extends Auth
         }
 
         // did not return as authenticated above
-        if (this.systemLogging) {
-            System.out.println(this + " Passing auth filter failure to super.unauthorizedHandler");
-        }
-
+        LOG.atLevel(logAtLevel).log("Throwing authentication failure and passing on to super unauthorizedHandler.buildResponse()");
         throw new WebApplicationException(unauthorizedHandler.buildResponse(prefix, realm));
     }
 
