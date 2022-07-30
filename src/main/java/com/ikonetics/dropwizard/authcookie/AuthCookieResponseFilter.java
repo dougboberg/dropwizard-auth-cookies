@@ -103,12 +103,12 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
             LOG.atLevel(logAtLevel).log("Add session cookie [{}] with value token:", String.valueOf(cookieName), String.valueOf(token));
 
             // set the token as the cookie value and -1 maxAge 'session' cookie that expires at browser close; probably irrelevant because of the JWT expiration
-            Cookie cookie = new NewCookie(cookieName, token, cookiePath, cookieDomain, NewCookie.DEFAULT_VERSION, null, -1, null, cookieSecure, cookieHttpOnly);
+            Cookie cookie = new NewCookie(cookieName, token, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, -1, null, cookieSecure, cookieHttpOnly);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
 
         } else if (request.getCookies().containsKey(cookieName)) {
-            Cookie cookie = new NewCookie(cookieName, null, cookiePath, cookieDomain, NewCookie.DEFAULT_VERSION, null, 0, null, cookieSecure, cookieHttpOnly);
             LOG.atLevel(logAtLevel).log("Delete dead cookie [{}] using a maxAge of 0 and null value", String.valueOf(cookieName));
+            Cookie cookie = new NewCookie(cookieName, null, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, 0, null, cookieSecure, cookieHttpOnly);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
         }
 

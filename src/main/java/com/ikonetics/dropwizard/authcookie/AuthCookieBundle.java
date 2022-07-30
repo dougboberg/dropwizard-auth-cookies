@@ -137,7 +137,6 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
         public Builder<C, P> withHttpOnly(boolean cookieHttpOnly) {
             this.cookieHttpOnly = Boolean.valueOf(cookieHttpOnly);
-            ;
             return this;
         }
 

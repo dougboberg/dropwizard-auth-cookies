@@ -19,7 +19,7 @@ public abstract class AuthCookiePrincipal implements Principal {
     // ---
     // Java Principal
     //
-    public AuthCookiePrincipal(String name) {
+    protected AuthCookiePrincipal(String name) {
         this.name = name;
     }
 
@@ -33,18 +33,18 @@ public abstract class AuthCookiePrincipal implements Principal {
     // ---
     // roles for Java SecurityContext and Dropwizard Authorizer
     //
-    final public void addInContext(ContainerRequestContext context) {
-        context.setSecurityContext(new AuthCookieSecurityContext(this, context.getSecurityContext().isSecure()));
+    public final void addInContext(ContainerRequestContext request) {
+        request.setSecurityContext(new AuthCookieSecurityContext(this, request.getSecurityContext().isSecure()));
     }
 
 
-    final public static void removeFromContext(ContainerRequestContext context) {
-        context.setSecurityContext(new AuthCookieSecurityContext(null, context.getSecurityContext().isSecure()));
+    public static final void removeFromContext(ContainerRequestContext request) {
+        request.setSecurityContext(new AuthCookieSecurityContext(null, request.getSecurityContext().isSecure()));
     }
 
 
     public boolean isInRole(String role) {
-        return (roles == null) ? false : roles.contains(role);
+        return (roles != null) && roles.contains(role);
     }
 
 
@@ -116,7 +116,7 @@ public abstract class AuthCookiePrincipal implements Principal {
     }
 
 
-    final public Map<String, String> readJwtInternals() {
+    public final Map<String, String> readJwtInternals() {
         return (internals == null) ? null : Collections.unmodifiableMap(internals);
     }
 
