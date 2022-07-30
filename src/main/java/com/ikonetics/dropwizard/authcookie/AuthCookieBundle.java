@@ -20,6 +20,7 @@ import io.fusionauth.jwt.hmac.HMACVerifier;
 public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrincipal> implements ConfiguredBundle<C> {
 
     // General config
+    final String runid; // a short, usually unique, alphanumeric ID string, used internally
     final Class<P> principalClass; // class to build and return
     final Level logAtLevel;
     final long sessionMinutes;
@@ -39,6 +40,12 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     // Use the Builder to create the Bundle. Configuration validation is done in the Builder.build(). Most things you should leave as default.
     //
     AuthCookieBundle(Builder<C, P> builder) {
+        // convert some UUID bytes to Base64 to get a mix of upper, lower, numeric, and punctuation, then remove the punctuation
+        UUID uuid = UUID.randomUUID();
+        ByteBuffer bb = ByteBuffer.wrap(new byte[8]);
+        bb.putLong(uuid.getLeastSignificantBits());
+        this.runid = Base64.getEncoder().encodeToString(bb.array()).replaceAll("[^a-zA-Z0-9]", "");
+
         this.principalClass = builder.principalClass;
         this.sessionMinutes = builder.sessionMinutes;
         this.cookieName = builder.cookieName;
@@ -56,8 +63,9 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     // Dropwizard bundle setup
     @Override
     public void run(C configuration, Environment env) throws Exception {
+
         // shared key created at runtime and used by both Request & Response. internal and not configurable.
-        String roleKey = "_internal_role_key_" + UUID.randomUUID().toString();
+        String roleKey = "_internal_roles_" + runid;
 
         AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, logAtLevel, cookieName, jwtVerifier, jwtIssuer, roleKey);
         AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, logAtLevel, sessionMinutes, cookieName, cookieDomain,

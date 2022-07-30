@@ -31,9 +31,17 @@ public class CookiePrincipal extends AuthCookiePrincipal {
 
 
     public String toJson() {
-        // returns JSON string with an extra space after the JSON comma separators, for word-wrap happiness
+        // returns JSON string with an extra space after the JSON field colon and object comma separators, for word-wrap happiness
         final ObjectMapper mapper = new ObjectMapper();
         final MinimalPrettyPrinter extraspaces = new MinimalPrettyPrinter() {
+
+            @Override
+            public void writeObjectFieldValueSeparator(JsonGenerator jg) throws IOException {
+                super.writeObjectFieldValueSeparator(jg); // super writes a default colon separator
+                jg.writeRaw(' '); // the extra char space
+            }
+
+
             @Override
             public void writeObjectEntrySeparator(JsonGenerator jg) throws IOException {
                 super.writeObjectEntrySeparator(jg); // super writes a default comma separator
