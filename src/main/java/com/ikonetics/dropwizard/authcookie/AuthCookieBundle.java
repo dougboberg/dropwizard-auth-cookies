@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.UUID;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
-import org.slf4j.event.Level;
 import io.dropwizard.auth.AuthDynamicFeature;
 import io.dropwizard.auth.AuthValueFactoryProvider;
 import io.dropwizard.core.Configuration;
@@ -22,7 +21,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     // General config
     final String runid; // a short, usually unique, alphanumeric ID string, used internally
     final Class<P> principalClass; // class to build and return
-    final Level logAtLevel;
+    final boolean silent;
     final long sessionMinutes;
 
     // Cookie config
@@ -56,7 +55,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         this.jwtSigner = builder.jwtSigner;
         this.jwtVerifier = builder.jwtVerifier;
         this.jwtIssuer = builder.jwtIssuer;
-        this.logAtLevel = builder.logAtLevel;
+        this.silent = builder.silent;
     }
 
 
@@ -67,8 +66,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         // shared key created at runtime and used by both Request & Response. internal and not configurable.
         String roleKey = "_internal_roles_" + runid;
 
-        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, logAtLevel, cookieName, jwtVerifier, jwtIssuer, roleKey);
-        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, logAtLevel, sessionMinutes, cookieName, cookieDomain,
+        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, silent, cookieName, jwtVerifier, jwtIssuer, roleKey);
+        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, silent, sessionMinutes, cookieName, cookieDomain,
                 cookiePath, cookieSecure, cookieHttpOnly, jwtSigner, jwtIssuer, roleKey);
 
         JerseyEnvironment jersey = env.jersey();
@@ -87,13 +86,13 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     //
     public static class Builder<C extends Configuration, P extends AuthCookiePrincipal> {
         final Class<P> principalClass; // required you provide a class that extends AuthCookiePrincipal
-        Level logAtLevel = Level.DEBUG; // the level that all messages are logged at. defaults to logging everything at "DEBUG" level
-        long sessionMinutes = 10; // non-zero positive count of minutes. defaults to 10 if zero
+        boolean silent = true; // silence all logging from this library
+        long sessionMinutes = 10; // non-zero positive count of minutes. defaults to 10
         String cookieName; // empty value defaults to '_authcookie'
         String cookieDomain; // can be null
         String cookiePath; // empty value defaults to '/'
-        Boolean cookieSecure; // use Boolean object to check for null and set a default not provided
-        Boolean cookieHttpOnly; // use Boolean object to check for null and set a default not provided
+        Boolean cookieSecure; // use Boolean internally to check for null/missing builder param, or default to 'true'
+        Boolean cookieHttpOnly; // use Boolean internally to check for null/missing builder param, or default to 'true'
         String jwtSecret; // empty value generates a new key at server runtime
         Signer jwtSigner;
         Verifier jwtVerifier;
@@ -102,6 +101,12 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         // minimum setup just needs the name of your CookiePrincipal subclass
         public Builder(Class<P> principalClass) {
             this.principalClass = principalClass;
+        }
+
+
+        public Builder<C, P> withSilent(boolean silent) {
+            this.silent = silent;
+            return this;
         }
 
 
@@ -149,12 +154,6 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
         public Builder<C, P> withIssuer(String jwtIssuer) {
             this.jwtIssuer = jwtIssuer;
-            return this;
-        }
-
-
-        public Builder<C, P> withLogAtLevel(Level logAtLevel) {
-            this.logAtLevel = logAtLevel;
             return this;
         }
 

@@ -112,12 +112,12 @@ public abstract class AuthCookiePrincipal implements Principal {
     // helpers for the internal generated JWT values. for example, you could read the 'exp' value of the JWT to get the expiration second
     //
     final void storeJwtInternals(Map<String, String> internals) {
-        this.internals = internals;
+        this.internals = Collections.unmodifiableMap(internals);
     }
 
 
     public final Map<String, String> readJwtInternals() {
-        return (internals == null) ? null : Collections.unmodifiableMap(internals);
+        return (internals == null) ? Collections.emptyMap() : internals;
     }
 
 }

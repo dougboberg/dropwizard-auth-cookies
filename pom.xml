@@ -7,7 +7,7 @@
   <url>https://github.com/dougboberg/dropwizard-auth-cookies</url>
   <groupId>com.ikonetics</groupId>
   <artifactId>dropwizard-auth-cookies</artifactId>
-  <version>0.9</version>
+  <version>1.0</version>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -26,7 +26,7 @@
       Fusionauth JWT is small and should only be dependent on Jackson, which Dropwizard already uses.
       https://github.com/FusionAuth/fusionauth-jwt 
     -->
-    <fusionauth.version>5.2.0</fusionauth.version>
+    <fusionauth.version>5.2.1</fusionauth.version>
   </properties>
 
   <dependencies>

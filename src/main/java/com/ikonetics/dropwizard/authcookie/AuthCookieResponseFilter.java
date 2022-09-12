@@ -10,7 +10,6 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.event.Level;
 import io.fusionauth.jwt.Signer;
 import io.fusionauth.jwt.domain.JWT;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -27,7 +26,7 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
 
     // General config
     final Class<P> principalClass; // class to build and return
-    final Level logAtLevel;
+    final boolean silent;
     final long sessionMinutes;
 
     // Cookie setup
@@ -44,10 +43,10 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     // private internals; not configurable.
     final String roleKey;
 
-    public AuthCookieResponseFilter(Class<P> principalClass, Level logAtLevel, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
+    public AuthCookieResponseFilter(Class<P> principalClass, boolean silent, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
             boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
-        this.logAtLevel = logAtLevel;
+        this.silent = silent;
         this.sessionMinutes = sessionMinutes;
         this.cookieName = cookieName;
         this.cookieDomain = cookieDomain;
@@ -100,14 +99,18 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
             String token = JWT.getEncoder().encode(jwt, jwtSigner);
 
             // if you're here debugging something, you can decode the token at https://jwt.io
-            LOG.atLevel(logAtLevel).log("Add session cookie [{}] with value token:", String.valueOf(cookieName), String.valueOf(token));
+            if (!silent) {
+                LOG.debug("Add session cookie [{}] with value token: {}", cookieName, token);
+            }
 
             // set the token as the cookie value and -1 maxAge 'session' cookie that expires at browser close; probably irrelevant because of the JWT expiration
             Cookie cookie = new NewCookie(cookieName, token, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, -1, null, cookieSecure, cookieHttpOnly);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
 
         } else if (request.getCookies().containsKey(cookieName)) {
-            LOG.atLevel(logAtLevel).log("Delete dead cookie [{}] using a maxAge of 0 and null value", String.valueOf(cookieName));
+            if (!silent) {
+                LOG.debug("Delete dead session cookie [{}] using a maxAge of 0 and null value", cookieName);
+            }
             Cookie cookie = new NewCookie(cookieName, null, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, 0, null, cookieSecure, cookieHttpOnly);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
         }
