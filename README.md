@@ -1,46 +1,47 @@
 # dropwizard-auth-cookies
-Cookies for Dropwizard 4 session management using standard Java 17 Principal and JSON Web Tokens. 
-Obviously heavily inspired by @dhatim and https://github.com/dhatim/dropwizard-jwt-cookie-authentication
+Use simple HTTP cookies for Dropwizard 4 session management with a standard Java 17 Principal and JSON Web Token. 
 
-* Dropwizard 4 targets Java 11+ and the jakarta namespace.
-* This library targets Java 17.
-
-### Detailed Description
+### Details
 This library creates a standard HTTP cookie whose value is a JSON Web Token (JWT https://jwt.io) object. 
-The JWT may contain standard Java Principal Roles and additional custom key-value "claims". 
-The cookie is stored on the remote client (web browser) and the Prinicpal is used in Java on the Dropwizard server. 
-You can use the Java Principal and its Roles for standard Java authorization patterns.
+The JWT may contain standard Java Principal `Roles` and additional custom key-value `claims`. 
+The cookie is stored on the remote client (web browser) to be returned at a later time; on a future request. 
+The Java Prinicpal is used on the Dropwizard server for standard Java authorization patterns.
 
-
-### Even more detail...
-During a response to a request, a cookie is created and returned to the calling client (perhaps a web browser client). 
-The cookie is stored on the browser to be returned at a later time; on the next request.
-
-When the cookie is returned, its JWT value is verified to ensure that the JWT has not expired and is still valid. 
-A valid JWT is converted into a standard Java Principal class and the Principal Roles are read from the JWT and assigned to the Principal. 
+When the cookie is returned to the server, its JWT value is verified to ensure that the JWT has not expired and is still valid. 
+A valid JWT is converted into a standard Java `Principal` class and the Principal Roles are read from the JWT and assigned to the Principal. 
 If the JWT is invalid for any reason, the Principal is unknown (not logged in) and is not created.
 
-## Overview of available configuration options
-* Set the user's session duration to 1 or more minutes
+Obviously heavily inspired by @dhatim and https://github.com/dhatim/dropwizard-jwt-cookie-authentication
+
+### Some of the available configuration options
+* Session durations of 1 or more minutes.
 * Add zero or many Principal Roles which work with `@RolesAllowed` on your server methods to limit which actions a remote caller may perform.
 * Use your own custom Principal class, or use the default `CookiePrincipal` which should work in most scenarios.
 * Limit the cookie with `path`, `domain`, `secure`, and `HttpOnly`. 
-* Specify the cookie's name.
+* Customize the JWT issuer and secret.
 
 
-# Setup
+# Setup &nbsp; &nbsp; ![Release](https://jitpack.io/v/com.ikonetics/dropwizard-auth-cookies.svg)
 
 ## Add the Dependency 
-The compiled binary for this project is currently hosted with GitHub Packages.
-You need to have a personal access token from GitHub and use it to configure your .m2/settings.xml file.
-https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry#authenticating-to-github-packages
+The compiled binary for this project is hosted with JitPack.
+https://jitpack.io/#com.ikonetics/dropwizard-auth-cookies
 
-After GitHub Packages settings are configured, add the following to your project's Maven `pom.xml`
+Add the following to your project's Maven `pom.xml`
 ```xml
+<!-- Add the JitPack repository -->
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<!-- Add the dependency -->
 <dependency>
     <groupId>com.ikonetics</groupId>
     <artifactId>dropwizard-auth-cookies</artifactId>
-    <version>1.0</version>
+    <version>2.0</version>
 </dependency>
 ```
 
@@ -71,13 +72,14 @@ You should also already have methods to verify user credentials.
 ### Creating an newly authenticated Principal
 When you authenticate a user, create a `CookiePrincipal` for them and attach it to the Java context:
 ```java
-@GET
-@Path("/login")
+@POST
+@Path("/process_login")
 public void login(@Context ContainerRequestContext context) {
 
     // ... my custom login code to verify the user and their credentials ... 
 
-    // create a Principal for this user, passing in their unique ID as the Principal Name value (arbitrary and up to you)
+    // create a Principal for the user after account validation succeeds, 
+    // passing in their unique ID as the Principal Name value (arbitrary and up to you)
     CookiePrincipal principal = new CookiePrincipal( aGoodUser.userId );
 
     // attach to the context
@@ -109,15 +111,15 @@ The easiest way is to use `addClaim(key, value)` and `getClaim(key)`.
 ```java
 principal.addClaim("postalCode", "KA14 3BL");
 
-// ... some time later ...
+// ... some time later, perhaps on a future unrelated request ...
 
 String postcode = principal.getClaim("postalCode");
 ```
 All custom information is stored in the JWT as *claim* values.
 The claims are part of the cookie value and are sent to the calling client.
 
-**You should not put secret information into a claim**
-JWT information, including all claims, are only *encoded* and are absolutely not *encrypted*.
+**You should not put secret information into a claim.**
+JWT information, including all claims, are simply *encoded* and are absolutely not *encrypted*.
 
 The `AuthCookiePrincipal` super class has helper methods to set all claims at once, get all claims, and remove a claim.
 * `setClaims(HashMap<String, Object>)`
@@ -173,11 +175,12 @@ The `AuthCookiePrincipal` super class has helper methods to set all roles, get a
 * `removeRole(String)`
 
 
-# Custom Configuration
+
+# Custom Configuration (easy tweaks)
 Configuring the library is performed by chaining calls to the `AuthCookieBundle.Builder` object. 
 Create a new instance of the `Builder` as shown above, then call any of the following methods before calling the final `build()` method.
 
-For example:
+For example, to customize the session length and cookie behavior in Dropwizard's `initialize()` setup:
 ```java
     Builder<Configuration, CookiePrincipal> builder = new AuthCookieBundle.Builder<>(CookiePrincipal.class);
 
@@ -191,8 +194,6 @@ For example:
     bootstrap.addBundle( builder.build() );
 ```
 
-## Easy Optional Configuration
-
 ### `withSessionMinutes(long)`
 * default is a `10` minute session
 
@@ -201,7 +202,7 @@ The value provided must be a minimum of `1` minute and a maximum of `16819200` m
 Values outside of the minimum and maximum range are capped to fit in the range.
 *(If you pass in `-3` it is changed to the minimum value of `1`)*
 
-The session time is 'restarted' with each request. 
+The session time is renewed with each request. 
 This behavior is intentional. 
 Each new response from a protected resource on the server receives a new cookie JWT, which is valid for *SessionMinutes* number of minutes, starting *now*. 
 For example, if you configure the session to be valid for 5 minutes and the cookie is returned to the server at 4 minutes, a new cookie is created for another 5 minutes starting at the time of this new cookie's creation, then returned to the calling client.
@@ -225,15 +226,16 @@ Pass `false` to disable the cookie HttpOnly option.
 
 
 
-## Advanced Optional Configuration
+# Advanced Configuration
 
 Most scenarios won't need to use these advanced optional configurations.
 
-### `new Builder(Class<P>)`
-* the class must extend the abstract class `com.ikonetics.dropwizard.authcookie.AuthCookiePrincipal` 
-
+## Use a custom Java Principal class
 For most cases you can simply use the provided `CookiePrincipal` class, which already extends `AuthCookiePrincipal`. 
 If you need something more complex, create your own custom `AuthCookiePrincipal` extension and pass it to the `Builder()`.
+
+### `new Builder(Class<P>)`
+* the class must extend the abstract class `com.ikonetics.dropwizard.authcookie.AuthCookiePrincipal` 
 
 A custom Principal class must implement its own 1-argument constructor `(String)` for the Java Principal Name.
 The constructor must call to `super(name)` and can otherwise be empty:
@@ -244,6 +246,8 @@ public class MyCustomPrincipal extends AuthCookiePrincipal {
     }
 }
 ```
+
+## Custom cookie properties
 
 ### `withDomain(String)`
 * ignored by default and when set to `null` or a blank string.
@@ -271,6 +275,8 @@ The forward slash (`/`) character is interpreted as a directory separator, and s
 Pass in a simple string of ASCII alphanumerics, dashes, and underscores to change the cookie name.
 
 
+## Custom JWT properties
+
 ### `withIssuer(String)`
 * ignored by default
 * ignored when set to `null` or a blank string.
@@ -294,6 +300,7 @@ A new secret string is created at each Dropwizard Application reboot (during `in
 Theoretically you could use this configuration to share the same secret across multiple instances of your Dropwizard Application.
 The resulting cookie JWT values will be valid on any instance using the same shared secret that needs to verify the JWT.
 
+## Debugging options
 
 ### `withSilent(boolean)`
 * default is `true` which silences all `Logger` messages generated by this library.
@@ -303,7 +310,7 @@ Pass `false` to have the library write various `Logger.debug()`,  `Logger.info()
 
 
 # References
-* *@dhatim's Dropwizard 2 auth library https://github.com/dhatim/dropwizard-jwt-cookie-authentication
+* @dhatim's Dropwizard 2 auth library https://github.com/dhatim/dropwizard-jwt-cookie-authentication
 * Dropwizard 4 (versus 3 or 2) https://github.com/dropwizard/dropwizard/discussions/4720#discussioncomment-2496043
 * Dropwizard resources: https://www.dropwizard.io/en/latest/getting-started.html#creating-a-resource-class
 * Dropwizard authentication: https://www.dropwizard.io/en/latest/manual/auth.html?highlight=RolesAllowed#protecting-resources

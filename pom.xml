@@ -7,30 +7,22 @@
   <url>https://github.com/dougboberg/dropwizard-auth-cookies</url>
   <groupId>com.ikonetics</groupId>
   <artifactId>dropwizard-auth-cookies</artifactId>
-  <version>1.0</version>
+  <version>2.0</version>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
-
-    <!-- 
-      Dropwizard 4 is Java 11 and the jakarta namespace.
-      Dropwizard 3 is Java 11 with older javax namespace. 
-      Dropwizard 2 is nearing end of life.
-      https://github.com/dropwizard/dropwizard/discussions/4720#discussioncomment-2496043
-    -->
-    <dropwizard.version>4.0.0-beta.2</dropwizard.version>
+    <dropwizard.version>4.0.0</dropwizard.version>
 
     <!-- 
       Fusionauth JWT is small and should only be dependent on Jackson, which Dropwizard already uses.
       https://github.com/FusionAuth/fusionauth-jwt 
     -->
-    <fusionauth.version>5.2.1</fusionauth.version>
+    <fusionauth.version>5.2.2</fusionauth.version>
   </properties>
 
   <dependencies>
-
     <dependency>
       <groupId>io.dropwizard</groupId>
       <artifactId>dropwizard-core</artifactId>
@@ -41,20 +33,17 @@
       <artifactId>dropwizard-auth</artifactId>
       <version>${dropwizard.version}</version>
     </dependency>
-
     <dependency>
       <groupId>io.fusionauth</groupId>
       <artifactId>fusionauth-jwt</artifactId>
       <version>${fusionauth.version}</version>
     </dependency>
-
   </dependencies>
 
   <distributionManagement>
-    <!-- https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry -->
     <repository>
-      <id>github</id>
-      <url>https://maven.pkg.github.com/dougboberg/dropwizard-auth-cookies</url>
+      <id>jitpack.io</id>
+      <url>https://jitpack.io/#com.ikonetics/dropwizard-auth-cookies</url>
     </repository>
   </distributionManagement>
 
@@ -63,8 +52,23 @@
       <name>Douglas Boberg</name>
       <organization>Ikonetics</organization>
       <organizationUrl>https://www.ikonetics.com/</organizationUrl>
+      <properties>
+        <mastodon>https://hachyderm.io/@gauche_douglas</mastodon>
+        <twitter>https://twitter.com/douglasboberg</twitter>
+      </properties>      
     </developer>
   </developers>
+
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/dougboberg/dropwizard-auth-cookies/issues</url>
+  </issueManagement>
+
+  <scm>
+    <connection>scm:git:git://github.com/dougboberg/dropwizard-auth-cookies.git</connection>
+    <developerConnection>scm:git:ssh://github.com:dougboberg/dropwizard-auth-cookies.git</developerConnection>
+    <url>http://github.com/dougboberg/dropwizard-auth-cookies/tree/main</url>
+  </scm>
 
   <licenses>
     <license>
