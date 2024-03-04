@@ -8,16 +8,18 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jetty.http.CookieCompliance;
+import org.eclipse.jetty.http.HttpCookie;
+import org.eclipse.jetty.http.HttpCookie.SameSite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import io.fusionauth.jwt.Signer;
 import io.fusionauth.jwt.domain.JWT;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
-import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.NewCookie;
 
 
 public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements ContainerResponseFilter {
@@ -26,7 +28,7 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
 
     // General config
     final Class<P> principalClass; // class to build and return
-    final boolean silent;
+    final Level logAtLevel; // defaults to Trace
     final long sessionMinutes;
 
     // Cookie setup
@@ -35,6 +37,9 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     final String cookiePath;
     final boolean cookieSecure;
     final boolean cookieHttpOnly;
+    final SameSite cookieSameSite;
+    final boolean cookiePartitioned;
+    final CookieCompliance cookieCompliance;
 
     // JWT setup
     final Signer jwtSigner;
@@ -43,16 +48,20 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     // private internals; not configurable.
     final String roleKey;
 
-    public AuthCookieResponseFilter(Class<P> principalClass, boolean silent, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
-            boolean cookieSecure, boolean cookieHttpOnly, Signer jwtSigner, String jwtIssuer, String roleKey) {
+    public AuthCookieResponseFilter(Class<P> principalClass, Level logAtLevel, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
+            boolean cookieSecure, boolean cookieHttpOnly, SameSite cookieSameSite, boolean cookiePartitioned, CookieCompliance cookieCompliance,
+            Signer jwtSigner, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
-        this.silent = silent;
+        this.logAtLevel = logAtLevel;
         this.sessionMinutes = sessionMinutes;
         this.cookieName = cookieName;
         this.cookieDomain = cookieDomain;
         this.cookiePath = cookiePath;
         this.cookieSecure = cookieSecure;
         this.cookieHttpOnly = cookieHttpOnly;
+        this.cookieSameSite = cookieSameSite;
+        this.cookiePartitioned = cookiePartitioned;
+        this.cookieCompliance = cookieCompliance;
         this.jwtSigner = jwtSigner;
         this.jwtIssuer = jwtIssuer;
         this.roleKey = roleKey;
@@ -99,22 +108,26 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
             String token = JWT.getEncoder().encode(jwt, jwtSigner);
 
             // if you're here debugging something, you can decode the token at https://jwt.io
-            if (!silent) {
-                LOG.debug("Add session cookie [{}] with value token: {}", cookieName, token);
-            }
+            LOG.atLevel(this.logAtLevel).log("Add session cookie [{}] with value token: {}", cookieName, token);
 
             // set the token as the cookie value and -1 maxAge 'session' cookie that expires at browser close; probably irrelevant because of the JWT expiration
-            Cookie cookie = new NewCookie(cookieName, token, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, -1, null, cookieSecure, cookieHttpOnly);
-            response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
+            String cookieString = makeCookie(token, -1);
+            response.getHeaders().add(HttpHeaders.SET_COOKIE, cookieString);
 
         } else if (request.getCookies().containsKey(cookieName)) {
-            if (!silent) {
-                LOG.debug("Delete dead session cookie [{}] using a maxAge of 0 and null value", cookieName);
-            }
-            Cookie cookie = new NewCookie(cookieName, null, cookiePath, cookieDomain, Cookie.DEFAULT_VERSION, null, 0, null, cookieSecure, cookieHttpOnly);
-            response.getHeaders().add(HttpHeaders.SET_COOKIE, cookie);
-        }
+            LOG.atLevel(this.logAtLevel).log("Delete dead session cookie [{}] using a maxAge of 0 and null value", cookieName);
 
+            String cookieString = makeCookie(null, 0);
+            response.getHeaders().add(HttpHeaders.SET_COOKIE, cookieString);
+        }
+    }
+
+
+    String makeCookie(String value, int maxAge) {
+        HttpCookie httpCookie = new HttpCookie(cookieName, value, cookieDomain, cookiePath, maxAge, cookieHttpOnly, cookieSecure, null, 1, cookieSameSite,
+                cookiePartitioned);
+        // return the 'SetCookie' string value which is formatted for the compliance rules. do not use toString() or asString()
+        return httpCookie.getSetCookie(cookieCompliance);
     }
 
 }

@@ -3,7 +3,10 @@ package com.ikonetics.dropwizard.authcookie;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.UUID;
+import org.eclipse.jetty.http.CookieCompliance;
+import org.eclipse.jetty.http.HttpCookie.SameSite;
 import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
+import org.slf4j.event.Level;
 import io.dropwizard.auth.AuthDynamicFeature;
 import io.dropwizard.auth.AuthValueFactoryProvider;
 import io.dropwizard.core.Configuration;
@@ -21,7 +24,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     // General config
     final String runid; // a short, usually unique, alphanumeric ID string, used internally
     final Class<P> principalClass; // class to build and return
-    final boolean silent;
+    final Level logAtLevel; // defaults to Trace
     final long sessionMinutes;
 
     // Cookie config
@@ -30,6 +33,9 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     final String cookiePath;
     final boolean cookieSecure;
     final boolean cookieHttpOnly;
+    final SameSite cookieSameSite;
+    final boolean cookiePartitioned;
+    final CookieCompliance cookieCompliance;
 
     // JWT config
     final Signer jwtSigner;
@@ -52,10 +58,13 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         this.cookiePath = builder.cookiePath;
         this.cookieSecure = builder.cookieSecure;
         this.cookieHttpOnly = builder.cookieHttpOnly;
+        this.cookieSameSite = builder.cookieSameSite;
+        this.cookiePartitioned = builder.cookiePartitioned;
+        this.cookieCompliance = builder.cookieCompliance;
         this.jwtSigner = builder.jwtSigner;
         this.jwtVerifier = builder.jwtVerifier;
         this.jwtIssuer = builder.jwtIssuer;
-        this.silent = builder.silent;
+        this.logAtLevel = builder.logAtLevel;
     }
 
 
@@ -66,9 +75,9 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         // shared key created at runtime and used by both Request & Response. internal and not configurable.
         String roleKey = "_internal_roles_" + runid;
 
-        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, silent, cookieName, jwtVerifier, jwtIssuer, roleKey);
-        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, silent, sessionMinutes, cookieName, cookieDomain,
-                cookiePath, cookieSecure, cookieHttpOnly, jwtSigner, jwtIssuer, roleKey);
+        AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, logAtLevel, cookieName, jwtVerifier, jwtIssuer, roleKey);
+        AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, logAtLevel, sessionMinutes, cookieName, cookieDomain,
+                cookiePath, cookieSecure, cookieHttpOnly, cookieSameSite, cookiePartitioned, cookieCompliance, jwtSigner, jwtIssuer, roleKey);
 
         JerseyEnvironment jersey = env.jersey();
         jersey.register(new AuthDynamicFeature(requestFilter));
@@ -86,13 +95,16 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     //
     public static class Builder<C extends Configuration, P extends AuthCookiePrincipal> {
         final Class<P> principalClass; // required you provide a class that extends AuthCookiePrincipal
-        boolean silent = true; // silence all logging from this library
+        Level logAtLevel = Level.TRACE; // logging level for all messages coming from this library
         long sessionMinutes = 10; // non-zero positive count of minutes. defaults to 10
         String cookieName; // empty value defaults to '_authcookie'
         String cookieDomain; // can be null
         String cookiePath; // empty value defaults to '/'
         Boolean cookieSecure; // use Boolean internally to check for null/missing builder param, or default to 'true'
         Boolean cookieHttpOnly; // use Boolean internally to check for null/missing builder param, or default to 'true'
+        SameSite cookieSameSite; // cross-site cookie behavior: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#samesite_attribute
+        Boolean cookiePartitioned; // partitioned privacy storage: https://developer.mozilla.org/en-US/docs/Web/Privacy/State_Partitioning#state_partitioning
+        CookieCompliance cookieCompliance; // rules for writing cookie value. default 'null' uses RFC6265 and writes out SameSite & Partitioned values
         String jwtSecret; // empty value generates a new key at server runtime
         Signer jwtSigner;
         Verifier jwtVerifier;
@@ -104,8 +116,8 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         }
 
 
-        public Builder<C, P> withSilent(boolean silent) {
-            this.silent = silent;
+        public Builder<C, P> logAtLevel(Level logAtLevel) {
+            this.logAtLevel = logAtLevel;
             return this;
         }
 
@@ -142,6 +154,24 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
         public Builder<C, P> withHttpOnly(boolean cookieHttpOnly) {
             this.cookieHttpOnly = Boolean.valueOf(cookieHttpOnly);
+            return this;
+        }
+
+
+        public Builder<C, P> withSameSite(SameSite cookieSameSite) {
+            this.cookieSameSite = cookieSameSite;
+            return this;
+        }
+
+
+        public Builder<C, P> withPartitioned(boolean cookiePartitioned) {
+            this.cookiePartitioned = cookiePartitioned;
+            return this;
+        }
+
+
+        public Builder<C, P> withCookieCompliance(CookieCompliance cookieCompliance) {
+            this.cookieCompliance = cookieCompliance;
             return this;
         }
 
@@ -217,6 +247,16 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
             // default true to forbid JavaScript from accessing the cookie
             if (cookieHttpOnly == null) {
                 cookieHttpOnly = Boolean.TRUE;
+            }
+
+            // default 'lax' samesite / cross-site behavior
+            if (cookieSameSite == null) {
+                cookieSameSite = SameSite.LAX;
+            }
+
+            // default partitioned cookies for storage
+            if (cookiePartitioned == null) {
+                cookiePartitioned = Boolean.TRUE;
             }
 
             // verify secret is usable. if it is missing default to a random Base64 UUID
