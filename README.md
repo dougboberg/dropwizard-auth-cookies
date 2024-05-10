@@ -288,6 +288,13 @@ Pass in a simple string of ASCII alphanumerics, dashes, and underscores to chang
 * default uses RFC6265 and writes out SameSite & Partitioned values
 
 
+### `withMaxAge(Long)`
+* number of seconds the browser should keep and return the authentication cookie
+* defaults to the JWT `withSessionMinutes` value, converted to seconds
+
+The user session is invalid when *either* the JWT expiration is reached or when the browser deletes the cookie.
+It would be unusual to set this value to anything other than its default / the JWT expiration in seconds.
+
 
 ## Custom JWT properties
 
@@ -319,7 +326,7 @@ The resulting cookie JWT values will be valid on any instance using the same sha
 ### `logAtLevel(Level)`
 * default level is `Trace`.
 
-Pass `false` to have the library write various `Logger.debug()`,  `Logger.info()`, and  `Logger.warn()` messages.
+Pass in a higher Level to have the library write various `.debug()`,  `.info()`, and  `.warn()` messages.
 
 
 

@@ -31,6 +31,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
     final String cookieName;
     final String cookieDomain;
     final String cookiePath;
+    final Long cookieMaxAge; // Long so we can check for null
     final boolean cookieSecure;
     final boolean cookieHttpOnly;
     final SameSite cookieSameSite;
@@ -56,6 +57,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         this.cookieName = builder.cookieName;
         this.cookieDomain = builder.cookieDomain;
         this.cookiePath = builder.cookiePath;
+        this.cookieMaxAge = builder.cookieMaxAge;
         this.cookieSecure = builder.cookieSecure;
         this.cookieHttpOnly = builder.cookieHttpOnly;
         this.cookieSameSite = builder.cookieSameSite;
@@ -77,7 +79,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
         AuthCookieRequestFilter<P> requestFilter = new AuthCookieRequestFilter<>(principalClass, logAtLevel, cookieName, jwtVerifier, jwtIssuer, roleKey);
         AuthCookieResponseFilter<P> responseFilter = new AuthCookieResponseFilter<>(principalClass, logAtLevel, sessionMinutes, cookieName, cookieDomain,
-                cookiePath, cookieSecure, cookieHttpOnly, cookieSameSite, cookiePartitioned, cookieCompliance, jwtSigner, jwtIssuer, roleKey);
+                cookiePath, cookieMaxAge, cookieSecure, cookieHttpOnly, cookieSameSite, cookiePartitioned, cookieCompliance, jwtSigner, jwtIssuer, roleKey);
 
         JerseyEnvironment jersey = env.jersey();
         jersey.register(new AuthDynamicFeature(requestFilter));
@@ -100,6 +102,7 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
         String cookieName; // empty value defaults to '_authcookie'
         String cookieDomain; // can be null
         String cookiePath; // empty value defaults to '/'
+        Long cookieMaxAge; // default is 60 * sessionMinutes; Long so we can check for null
         Boolean cookieSecure; // use Boolean internally to check for null/missing builder param, or default to 'true'
         Boolean cookieHttpOnly; // use Boolean internally to check for null/missing builder param, or default to 'true'
         SameSite cookieSameSite; // cross-site cookie behavior: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#samesite_attribute
@@ -142,6 +145,12 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
 
         public Builder<C, P> withPath(String cookiePath) {
             this.cookiePath = cookiePath;
+            return this;
+        }
+
+
+        public Builder<C, P> withMaxAge(Long cookieMaxAge) {
+            this.cookieMaxAge = cookieMaxAge;
             return this;
         }
 
@@ -238,6 +247,11 @@ public class AuthCookieBundle<C extends Configuration, P extends AuthCookiePrinc
                 cookiePath = "/";
             }
             cookiePath = cookiePath.trim();
+
+            // use the sessionMinutes if the maxAge was not explicitly set
+            if (cookieMaxAge == null) {
+                cookieMaxAge = sessionMinutes * 60;
+            }
 
             // default secure cookies requiring requests use the https: scheme
             if (cookieSecure == null) {

@@ -2,18 +2,18 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <name>Authorization Cookies for Dropwizard 4 and Java 17</name>
+  <name>Authorization Cookies for Dropwizard</name>
   <description>Cookies for Dropwizard session management using standard Java Principal and JSON Web Tokens</description>
   <url>https://github.com/dougboberg/dropwizard-auth-cookies</url>
   <groupId>com.ikonetics</groupId>
   <artifactId>dropwizard-auth-cookies</artifactId>
-  <version>3.0</version>
+  <version>4.0</version>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
-    <dropwizard.version>4.0.6</dropwizard.version>
+    <dropwizard.version>4.0.7</dropwizard.version>
 
     <!-- 
       Fusionauth JWT is small and should only be dependent on Jackson, which Dropwizard already uses.

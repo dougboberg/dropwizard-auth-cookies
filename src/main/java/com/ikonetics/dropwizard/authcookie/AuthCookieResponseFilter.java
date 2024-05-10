@@ -35,6 +35,7 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     final String cookieName;
     final String cookieDomain;
     final String cookiePath;
+    final long cookieMaxAge;
     final boolean cookieSecure;
     final boolean cookieHttpOnly;
     final SameSite cookieSameSite;
@@ -49,14 +50,15 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     final String roleKey;
 
     public AuthCookieResponseFilter(Class<P> principalClass, Level logAtLevel, long sessionMinutes, String cookieName, String cookieDomain, String cookiePath,
-            boolean cookieSecure, boolean cookieHttpOnly, SameSite cookieSameSite, boolean cookiePartitioned, CookieCompliance cookieCompliance,
-            Signer jwtSigner, String jwtIssuer, String roleKey) {
+            long cookieMaxAge, boolean cookieSecure, boolean cookieHttpOnly, SameSite cookieSameSite, boolean cookiePartitioned,
+            CookieCompliance cookieCompliance, Signer jwtSigner, String jwtIssuer, String roleKey) {
         this.principalClass = principalClass;
         this.logAtLevel = logAtLevel;
         this.sessionMinutes = sessionMinutes;
         this.cookieName = cookieName;
         this.cookieDomain = cookieDomain;
         this.cookiePath = cookiePath;
+        this.cookieMaxAge = cookieMaxAge;
         this.cookieSecure = cookieSecure;
         this.cookieHttpOnly = cookieHttpOnly;
         this.cookieSameSite = cookieSameSite;
@@ -110,8 +112,8 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
             // if you're here debugging something, you can decode the token at https://jwt.io
             LOG.atLevel(this.logAtLevel).log("Add session cookie [{}] with value token: {}", cookieName, token);
 
-            // set the token as the cookie value and -1 maxAge 'session' cookie that expires at browser close; probably irrelevant because of the JWT expiration
-            String cookieString = makeCookie(token, -1);
+            // set the token as the cookie value and the configured cookie life maxAge
+            String cookieString = makeCookie(token, cookieMaxAge);
             response.getHeaders().add(HttpHeaders.SET_COOKIE, cookieString);
 
         } else if (request.getCookies().containsKey(cookieName)) {
@@ -123,7 +125,7 @@ public class AuthCookieResponseFilter<P extends AuthCookiePrincipal> implements 
     }
 
 
-    String makeCookie(String value, int maxAge) {
+    String makeCookie(String value, long maxAge) {
         HttpCookie httpCookie = new HttpCookie(cookieName, value, cookieDomain, cookiePath, maxAge, cookieHttpOnly, cookieSecure, null, 1, cookieSameSite,
                 cookiePartitioned);
         // return the 'SetCookie' string value which is formatted for the compliance rules. do not use toString() or asString()
